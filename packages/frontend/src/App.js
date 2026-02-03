@@ -24,16 +24,18 @@ import {
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import './App.css';
 
-// INTENTIONAL ISSUE: API_URL should use environment variable or relative URL
-const API_URL = 'http://localhost:3001/api/todos';
+// Use relative API URL to work in all environments
+const API_URL = '/api/todos';
 
 // React Query hook for fetching todos
 const useTodos = () => {
   return useQuery({
     queryKey: ['todos'],
-    // INTENTIONAL ISSUE: Missing error handling in query
     queryFn: async () => {
       const response = await fetch(API_URL);
+      if (!response.ok) {
+        throw new Error('Failed to load todos');
+      }
       const data = await response.json();
       return data;
     },
@@ -45,7 +47,7 @@ function App() {
   const queryClient = useQueryClient();
 
   // Fetch todos using React Query
-  const { data: todos = [], isLoading } = useTodos();
+  const { data: todos = [], isLoading, isError, error } = useTodos();
 
   // Mutation for adding a new todo
   const addTodoMutation = useMutation({
@@ -76,12 +78,10 @@ function App() {
     },
   });
 
-  // INTENTIONAL ISSUE: Delete mutation not implemented
+  // Delete todo mutation
   const deleteTodoMutation = useMutation({
     mutationFn: async (id) => {
-      // TODO: Implement delete functionality
-      console.log('Delete todo:', id);
-      // Missing: await fetch(`${API_URL}/${id}`, { method: 'DELETE' });
+      await fetch(`${API_URL}/${id}`, { method: 'DELETE' });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['todos'] });
@@ -166,8 +166,29 @@ function App() {
           </Box>
         )}
 
-        {/* INTENTIONAL ISSUE: No empty state message when todos.length === 0 */}
+        {isError && (
+          <Card sx={{ p: 3, textAlign: 'center', color: 'error.main' }}>
+            <Typography variant="h6">
+              Failed to load todos
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              {error?.message || 'An error occurred'}
+            </Typography>
+          </Card>
+        )}
 
+        {!isLoading && !isError && todos.length === 0 && (
+          <Card sx={{ p: 4, textAlign: 'center' }}>
+            <Typography variant="h6" color="text.secondary">
+              No todos yet!
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+              Add your first task above to get started.
+            </Typography>
+          </Card>
+        )}
+
+        {!isLoading && !isError && todos.length > 0 && (
         <Card>
           <List sx={{ p: 0 }}>
             {todos.map((todo, index) => (
@@ -207,6 +228,7 @@ function App() {
                     size="small"
                     color="error"
                     onClick={() => handleDeleteTodo(todo.id)}
+                    aria-label="delete"
                   >
                     <DeleteIcon />
                   </IconButton>
@@ -215,12 +237,15 @@ function App() {
             ))}
           </List>
         </Card>
+        )}
 
-        {/* INTENTIONAL ISSUE: Stats always show 0 instead of calculating from todos */}
+        {/* Calculate stats from todos array */}
+        {!isLoading && !isError && (
         <Box sx={{ mt: 3, display: 'flex', justifyContent: 'center', gap: 2 }}>
-          <Chip label={`${0} items left`} color="primary" />
-          <Chip label={`${0} completed`} color="success" />
+          <Chip label={`${todos.filter(t => !t.completed).length} items left`} color="primary" />
+          <Chip label={`${todos.filter(t => t.completed).length} completed`} color="success" />
         </Box>
+        )}
       </Container>
     </Box>
   );
